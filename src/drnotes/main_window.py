@@ -58,14 +58,6 @@ class MainWindow(QMainWindow):
         self._settings = Settings()
         self._build_ui()
         self._build_menu()
-        self._connect_signals()
-        self._restore_state()
-
-        # restore theme (must be after _build_menu so _dark_mode_action exists)
-        if self._settings.dark_mode:
-            self._dark_mode_action.setChecked(True)  # triggers _on_dark_mode_toggled
-        if self._settings.emacs_mode:
-            self._emacs_mode_action.setChecked(True)  # triggers _on_emacs_mode_toggled
 
         # debounce timer for preview updates (300 ms idle)
         self._preview_timer = QTimer(self)
@@ -78,6 +70,15 @@ class MainWindow(QMainWindow):
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(5000)
         self._save_timer.timeout.connect(self._auto_save)
+
+        self._connect_signals()
+        self._restore_state()
+
+        # restore theme (must be after _build_menu so _dark_mode_action exists)
+        if self._settings.dark_mode:
+            self._dark_mode_action.setChecked(True)  # triggers _on_dark_mode_toggled
+        if self._settings.emacs_mode:
+            self._emacs_mode_action.setChecked(True)  # triggers _on_emacs_mode_toggled
 
         # first-launch: ask for notes directory
         if not self._settings.notes_root or not os.path.isdir(self._settings.notes_root):
@@ -178,6 +179,13 @@ class MainWindow(QMainWindow):
         change_dir = QAction("Change Notes Directory…", self)
         change_dir.triggered.connect(self._choose_notes_dir)
         file_menu.addAction(change_dir)
+
+        file_menu.addSeparator()
+
+        quit_action = QAction("Exit", self)
+        quit_action.setShortcut(QKeySequence("Ctrl+Q"))
+        quit_action.triggered.connect(self.close)
+        file_menu.addAction(quit_action)
 
         # -- Edit menu ---------------------------------------------------------
         edit_menu = mb.addMenu("&Edit")
