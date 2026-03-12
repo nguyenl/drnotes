@@ -1,6 +1,7 @@
 import base64
 
 import markdown
+from pygments.formatters import HtmlFormatter
 from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
@@ -74,6 +75,11 @@ body.dark th { background: #161b22; }
 body.dark a { color: #58a6ff; }
 body.dark hr { border-top-color: #30363d; }
 body.dark .mermaid-error { color: #ff7b72; background: #1a0a0a; border-color: #ff7b72; }
+/* syntax highlighting */
+.highlight { border-radius: 6px; overflow: auto; }
+.highlight pre { margin: 0; padding: 16px; line-height: 1.45; background: transparent; }
+.highlight pre code { padding: 0; font-size: 100%; }
+%%PYGMENTS_CSS%%
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
@@ -174,6 +180,15 @@ function updateContent(b64) {
 </html>
 """
 
+# Inject Pygments syntax-highlighting CSS for light and dark themes
+_PYGMENTS_CSS = "\n".join([
+    HtmlFormatter(style="tango").get_style_defs(".highlight"),
+    ".highlight { background: #f6f8fa; }",
+    HtmlFormatter(style="github-dark").get_style_defs("body.dark .highlight"),
+    "body.dark .highlight { background: #161b22; }",
+])
+_PAGE_TEMPLATE = _PAGE_TEMPLATE.replace("%%PYGMENTS_CSS%%", _PYGMENTS_CSS)
+
 
 # ---------------------------------------------------------------------------
 # Bridge object exposed to JS via QWebChannel
@@ -246,6 +261,7 @@ class PreviewPanel(QWidget):
         # markdown renderer
         self._md = markdown.Markdown(
             extensions=[
+                "pymdownx.highlight",
                 "pymdownx.superfences",
                 "pymdownx.tasklist",
                 "tables",
@@ -254,6 +270,11 @@ class PreviewPanel(QWidget):
                 "sane_lists",
             ],
             extension_configs={
+                "pymdownx.highlight": {
+                    "use_pygments": True,
+                    "css_class": "highlight",
+                    "guess_lang": False,
+                },
                 "pymdownx.superfences": {
                     "custom_fences": [
                         {
