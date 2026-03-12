@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "drnotes"
+version = "0.1.0"
+description = "A cross-platform markdown note-taking application"
+requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.6.0",
+    "markdown>=3.5",
+    "pymdown-extensions>=10.0",
+    "Pygments>=2.17",
+]
+
+[project.scripts]
+drnotes = "drnotes.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
