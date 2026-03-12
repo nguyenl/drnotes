@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "drnotes"
@@ -13,6 +13,9 @@ dependencies = [
     "pymdown-extensions>=10.0",
     "Pygments>=2.17",
 ]
+
+[project.optional-dependencies]
+package = ["pyinstaller>=6.0"]
 
 [project.scripts]
 drnotes = "drnotes.app:main"
