@@ -69,3 +69,23 @@ class Settings:
     @view_mode.setter
     def view_mode(self, mode: str):
         self._s.setValue("view_mode", mode)
+
+    # -- theme (light / dark) --------------------------------------------------
+
+    @property
+    def dark_mode(self) -> bool:
+        return self._s.value("dark_mode", False, type=bool)
+
+    @dark_mode.setter
+    def dark_mode(self, enabled: bool):
+        self._s.setValue("dark_mode", enabled)
+
+    # -- emacs mode ------------------------------------------------------------
+
+    @property
+    def emacs_mode(self) -> bool:
+        return self._s.value("emacs_mode", False, type=bool)
+
+    @emacs_mode.setter
+    def emacs_mode(self, enabled: bool):
+        self._s.setValue("emacs_mode", enabled)

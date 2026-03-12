@@ -63,6 +63,17 @@ li { margin-top: .25em; }
     border-radius: 6px; border: 1px solid #cf222e; white-space: pre-wrap; }
 body.sync-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 body.sync-scroll::-webkit-scrollbar { display: none; }
+/* dark mode */
+body.dark { color: #e6edf3; background: #0d1117; }
+body.dark h1, body.dark h2 { border-bottom-color: #30363d; }
+body.dark code { background: #161b22; }
+body.dark pre { background: #161b22; }
+body.dark blockquote { color: #8b949e; border-left-color: #30363d; }
+body.dark th, body.dark td { border-color: #30363d; }
+body.dark th { background: #161b22; }
+body.dark a { color: #58a6ff; }
+body.dark hr { border-top-color: #30363d; }
+body.dark .mermaid-error { color: #ff7b72; background: #1a0a0a; border-color: #ff7b72; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
@@ -70,6 +81,7 @@ body.sync-scroll::-webkit-scrollbar { display: none; }
 var bridge = null;
 var _scrollSyncEnabled = false;
 var _lastScrollFraction = 0;
+var _darkMode = false;
 document.addEventListener("DOMContentLoaded", function() {
     mermaid.initialize({ startOnLoad: false, theme: "default" });
     if (typeof qt !== "undefined") {
@@ -85,6 +97,17 @@ window.addEventListener('wheel', function(e) {
         bridge.on_wheel(e.deltaY);
     }
 }, { passive: false });
+
+function setDarkMode(enabled) {
+    _darkMode = enabled;
+    if (enabled) {
+        document.body.classList.add('dark');
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+    } else {
+        document.body.classList.remove('dark');
+        mermaid.initialize({ startOnLoad: false, theme: 'default' });
+    }
+}
 
 function setScrollSync(enabled) {
     _scrollSyncEnabled = enabled;
@@ -198,6 +221,7 @@ class PreviewPanel(QWidget):
         super().__init__(parent)
         self._page_ready = False
         self._scroll_sync = False
+        self._dark_mode = False
         self._pending: str | None = None
 
         layout = QVBoxLayout(self)
@@ -268,8 +292,16 @@ class PreviewPanel(QWidget):
 
     # -- internals -------------------------------------------------------------
 
+    def set_dark_mode(self, enabled: bool):
+        self._dark_mode = enabled
+        if self._page_ready:
+            js = "true" if enabled else "false"
+            self._view.page().runJavaScript(f"setDarkMode({js});")
+
     def _on_page_ready(self, ok: bool):
         self._page_ready = True
+        if self._dark_mode:
+            self._view.page().runJavaScript("setDarkMode(true);")
         if self._scroll_sync:
             self._view.page().runJavaScript("setScrollSync(true);")
         if self._pending is not None:

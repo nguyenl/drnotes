@@ -51,6 +51,43 @@ The application window is split into two primary panels:
 - Optionally supports a **split view** showing the editor and preview side by side
 - The currently open file name and path are displayed above the editor
 
+### Dark / Light Mode
+
+- A toggle in the View menu switches the entire application between dark and light themes
+- The selected theme applies to both the editor/UI chrome and the markdown preview pane
+- The chosen theme persists across sessions
+
+### Emacs Mode
+
+- A toggle in the View menu enables emacs-style keyboard navigation and editing in the text editor
+- When active, the following emacs keybindings replace or augment the default Qt editor bindings:
+
+| Key | Emacs action |
+|-----|-------------|
+| `Ctrl+F` | Move forward one character |
+| `Ctrl+B` | Move backward one character |
+| `Ctrl+N` | Move to next line |
+| `Ctrl+P` | Move to previous line |
+| `Ctrl+A` | Move to beginning of line |
+| `Ctrl+E` | Move to end of line |
+| `Alt+F` | Move forward one word |
+| `Alt+B` | Move backward one word |
+| `Ctrl+V` | Scroll down (page down) |
+| `Alt+V` | Scroll up (page up) |
+| `Ctrl+D` | Delete character forward |
+| `Ctrl+H` | Delete character backward |
+| `Ctrl+K` | Kill (cut) to end of line |
+| `Ctrl+W` | Kill (cut) selected region |
+| `Alt+D` | Kill word forward |
+| `Alt+Backspace` | Kill word backward |
+| `Alt+W` | Copy selected region |
+| `Ctrl+Y` | Yank (paste) from clipboard |
+| `Ctrl+Space` | Set / clear mark (begin selection) |
+| `Ctrl+G` | Cancel mark and deselect |
+
+- Navigation keys extend the selection when the mark is active (`Ctrl+Space`)
+- The emacs mode setting persists across sessions
+
 ---
 
 ## Markdown Editor
@@ -154,6 +191,8 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | FR-12 | Split view showing editor and preview side by side | Should have |
 | FR-13 | App remembers window size, position, and last-opened note across sessions | Should have |
 | FR-14 | Auto-save or save-on-switch to prevent data loss | Should have |
+| FR-15 | Dark / light mode toggle that persists across sessions | Should have |
+| FR-16 | Emacs mode: emacs-style navigation, kill/yank, and mark-based selection in the editor | Should have |
 
 ---
 

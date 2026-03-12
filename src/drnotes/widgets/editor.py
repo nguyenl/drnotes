@@ -1,6 +1,6 @@
 import re
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -11,6 +11,7 @@ from PySide6.QtGui import (
     QTextFormat,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QHBoxLayout,
     QLineEdit,
@@ -28,6 +29,18 @@ _LIST_RE = re.compile(
     r"^(?P<indent>\s*)"
     r"(?P<marker>[-*+](?:\s\[[ xX]\])?\s|\d+\.\s)"
 )
+
+# Ctrl/Alt keys claimed by emacs mode (used in ShortcutOverride filtering)
+_EMACS_CTRL_KEYS = frozenset({
+    Qt.Key.Key_F, Qt.Key.Key_B, Qt.Key.Key_N, Qt.Key.Key_P,
+    Qt.Key.Key_A, Qt.Key.Key_E, Qt.Key.Key_D, Qt.Key.Key_K,
+    Qt.Key.Key_W, Qt.Key.Key_Y, Qt.Key.Key_Space, Qt.Key.Key_G,
+    Qt.Key.Key_V, Qt.Key.Key_H,
+})
+_EMACS_ALT_KEYS = frozenset({
+    Qt.Key.Key_F, Qt.Key.Key_B, Qt.Key.Key_D,
+    Qt.Key.Key_V, Qt.Key.Key_W, Qt.Key.Key_Backspace,
+})
 
 
 # =============================================================================
@@ -154,6 +167,10 @@ class _EditorCore(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        # emacs mode state — must be set before any Qt calls that trigger event()
+        self._emacs_mode = False
+        self._emacs_mark_active = False
+
         # monospace font
         font = QFont("Consolas, 'Courier New', monospace")
         font.setStyleHint(QFont.StyleHint.Monospace)
@@ -166,12 +183,196 @@ class _EditorCore(QPlainTextEdit):
         # syntax highlighter
         self._highlighter = MarkdownHighlighter(self.document())
 
+        # theme colors (light defaults)
+        self._gutter_bg = QColor("#f6f8fa")
+        self._gutter_fg = QColor("#8b949e")
+        self._cur_line_bg = QColor("#f0f4ff")
+
         # line-number area
         self._line_area = _LineNumberArea(self)
         self.blockCountChanged.connect(self._update_line_area_width)
         self.updateRequest.connect(self._update_line_area)
         self.cursorPositionChanged.connect(self._highlight_current_line)
         self._update_line_area_width()
+
+    def set_dark_mode(self, dark: bool):
+        if dark:
+            self._gutter_bg = QColor("#161b22")
+            self._gutter_fg = QColor("#8b949e")
+            self._cur_line_bg = QColor("#1c2128")
+        else:
+            self._gutter_bg = QColor("#f6f8fa")
+            self._gutter_fg = QColor("#8b949e")
+            self._cur_line_bg = QColor("#f0f4ff")
+        self._highlighter.set_dark_mode(dark)
+        self._line_area.update()
+        self._highlight_current_line()
+
+    def set_emacs_mode(self, enabled: bool):
+        self._emacs_mode = enabled
+        if not enabled:
+            self._emacs_mark_active = False
+            cursor = self.textCursor()
+            cursor.setPosition(cursor.position())
+            self.setTextCursor(cursor)
+
+    # -- emacs keybinding handling ---------------------------------------------
+
+    def event(self, e):
+        if self._emacs_mode and e.type() == QEvent.Type.ShortcutOverride:
+            ctrl = e.modifiers() & Qt.KeyboardModifier.ControlModifier
+            alt = e.modifiers() & Qt.KeyboardModifier.AltModifier
+            no_shift = not (e.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+            if ctrl and no_shift and e.key() in _EMACS_CTRL_KEYS:
+                e.accept()
+                return True
+            if alt and no_shift and e.key() in _EMACS_ALT_KEYS:
+                e.accept()
+                return True
+        return super().event(e)
+
+    def _emacs_handle(self, event: QKeyEvent) -> bool:
+        """Dispatch emacs keybindings. Returns True if the event was consumed."""
+        key = event.key()
+        ctrl = event.modifiers() & Qt.KeyboardModifier.ControlModifier
+        alt = event.modifiers() & Qt.KeyboardModifier.AltModifier
+        no_shift = not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier)
+
+        if not no_shift:
+            return False
+        if not ctrl and not alt:
+            return False
+
+        cursor = self.textCursor()
+
+        def _move(op):
+            mode = (
+                QTextCursor.MoveMode.KeepAnchor
+                if self._emacs_mark_active
+                else QTextCursor.MoveMode.MoveAnchor
+            )
+            cursor.movePosition(op, mode)
+            self.setTextCursor(cursor)
+
+        def _kill_to_clipboard(selected_text: str):
+            QApplication.clipboard().setText(selected_text.replace("\u2029", "\n"))
+
+        if ctrl and not alt:
+            if key == Qt.Key.Key_F:
+                _move(QTextCursor.MoveOperation.Right)
+            elif key == Qt.Key.Key_B:
+                _move(QTextCursor.MoveOperation.Left)
+            elif key == Qt.Key.Key_N:
+                _move(QTextCursor.MoveOperation.Down)
+            elif key == Qt.Key.Key_P:
+                _move(QTextCursor.MoveOperation.Up)
+            elif key == Qt.Key.Key_A:
+                _move(QTextCursor.MoveOperation.StartOfLine)
+            elif key == Qt.Key.Key_E:
+                _move(QTextCursor.MoveOperation.EndOfLine)
+            elif key == Qt.Key.Key_D:
+                # delete char forward, ignoring any mark selection
+                pos = cursor.position()
+                cursor.setPosition(pos)
+                cursor.deleteChar()
+                self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_H:
+                # delete char backward
+                pos = cursor.position()
+                cursor.setPosition(pos)
+                cursor.deletePreviousChar()
+                self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_K:
+                # kill to end of line (or kill newline if at EOL)
+                pos = cursor.position()
+                cursor.setPosition(pos)
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.EndOfLine,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                if cursor.position() == pos:
+                    cursor.movePosition(
+                        QTextCursor.MoveOperation.Right,
+                        QTextCursor.MoveMode.KeepAnchor,
+                    )
+                if cursor.hasSelection():
+                    _kill_to_clipboard(cursor.selectedText())
+                    cursor.removeSelectedText()
+                    self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_W:
+                # kill region (cut)
+                if cursor.hasSelection():
+                    _kill_to_clipboard(cursor.selectedText())
+                    cursor.removeSelectedText()
+                    self.setTextCursor(cursor)
+                self._emacs_mark_active = False
+            elif key == Qt.Key.Key_Y:
+                # yank (paste)
+                cursor.insertText(QApplication.clipboard().text())
+                self.setTextCursor(cursor)
+                self._emacs_mark_active = False
+            elif key == Qt.Key.Key_Space:
+                # set or clear mark
+                if self._emacs_mark_active:
+                    self._emacs_mark_active = False
+                    cursor.setPosition(cursor.position())
+                    self.setTextCursor(cursor)
+                else:
+                    self._emacs_mark_active = True
+                    cursor.setPosition(cursor.position())
+                    self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_G:
+                # cancel: deactivate mark and clear selection
+                self._emacs_mark_active = False
+                cursor.setPosition(cursor.position())
+                self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_V:
+                sb = self.verticalScrollBar()
+                sb.setValue(sb.value() + sb.pageStep())
+            else:
+                return False
+            return True
+
+        elif alt and not ctrl:
+            if key == Qt.Key.Key_F:
+                _move(QTextCursor.MoveOperation.NextWord)
+            elif key == Qt.Key.Key_B:
+                _move(QTextCursor.MoveOperation.PreviousWord)
+            elif key == Qt.Key.Key_D:
+                # kill word forward
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.NextWord,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                if cursor.hasSelection():
+                    _kill_to_clipboard(cursor.selectedText())
+                    cursor.removeSelectedText()
+                    self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_Backspace:
+                # kill word backward
+                cursor.movePosition(
+                    QTextCursor.MoveOperation.PreviousWord,
+                    QTextCursor.MoveMode.KeepAnchor,
+                )
+                if cursor.hasSelection():
+                    _kill_to_clipboard(cursor.selectedText())
+                    cursor.removeSelectedText()
+                    self.setTextCursor(cursor)
+            elif key == Qt.Key.Key_V:
+                sb = self.verticalScrollBar()
+                sb.setValue(sb.value() - sb.pageStep())
+            elif key == Qt.Key.Key_W:
+                # copy region (save to clipboard, deselect)
+                if cursor.hasSelection():
+                    _kill_to_clipboard(cursor.selectedText())
+                    cursor.setPosition(cursor.position())
+                    self.setTextCursor(cursor)
+                self._emacs_mark_active = False
+            else:
+                return False
+            return True
+
+        return False
 
     # -- line numbers ----------------------------------------------------------
 
@@ -197,7 +398,7 @@ class _EditorCore(QPlainTextEdit):
 
     def line_number_area_paint_event(self, event):
         painter = QPainter(self._line_area)
-        painter.fillRect(event.rect(), QColor("#f6f8fa"))
+        painter.fillRect(event.rect(), self._gutter_bg)
         block = self.firstVisibleBlock()
         block_number = block.blockNumber()
         top = round(self.blockBoundingGeometry(block).translated(self.contentOffset()).top())
@@ -205,7 +406,7 @@ class _EditorCore(QPlainTextEdit):
 
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
-                painter.setPen(QColor("#8b949e"))
+                painter.setPen(self._gutter_fg)
                 painter.drawText(
                     0,
                     top,
@@ -224,7 +425,7 @@ class _EditorCore(QPlainTextEdit):
         extra = []
         if not self.isReadOnly():
             sel = QTextEdit.ExtraSelection()
-            sel.format.setBackground(QColor("#f0f4ff"))
+            sel.format.setBackground(self._cur_line_bg)
             sel.format.setProperty(QTextFormat.Property.FullWidthSelection, True)
             sel.cursor = self.textCursor()
             sel.cursor.clearSelection()
@@ -234,6 +435,10 @@ class _EditorCore(QPlainTextEdit):
     # -- key handling: list continuation, indent/outdent -----------------------
 
     def keyPressEvent(self, event: QKeyEvent):
+        # emacs bindings take priority when emacs mode is active
+        if self._emacs_mode and self._emacs_handle(event):
+            return
+
         # Tab / Shift+Tab for indentation
         if event.key() == Qt.Key.Key_Tab and not event.modifiers() & Qt.KeyboardModifier.ControlModifier:
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
@@ -444,6 +649,12 @@ class MarkdownEditor(QWidget):
         self._editor.setTextCursor(cursor)
         sb.setValue(scroll_val)
         sb.valueChanged.connect(self._on_scroll_changed)
+
+    def set_dark_mode(self, dark: bool):
+        self._editor.set_dark_mode(dark)
+
+    def set_emacs_mode(self, enabled: bool):
+        self._editor.set_emacs_mode(enabled)
 
     def show_find(self):
         self._find_bar.activate()

@@ -25,49 +25,75 @@ class MarkdownHighlighter(QSyntaxHighlighter):
 
     # -- format definitions ----------------------------------------------------
 
-    def _setup_formats(self):
+    def _setup_formats(self, dark: bool = False):
+        self._rules.clear()
         rules = self._rules
 
+        if dark:
+            heading_color  = "#79c0ff"
+            body_color     = "#e6edf3"
+            strike_color   = "#8b949e"
+            code_color     = "#ffa657"
+            link_color     = "#58a6ff"
+            image_color    = "#d2a8ff"
+            quote_color    = "#8b949e"
+            list_color     = "#ff7b72"
+            hr_color       = "#30363d"
+        else:
+            heading_color  = "#0550AE"
+            body_color     = "#24292F"
+            strike_color   = "#6E7781"
+            code_color     = "#953800"
+            link_color     = "#0969DA"
+            image_color    = "#8250DF"
+            quote_color    = "#57606A"
+            list_color     = "#CF222E"
+            hr_color       = "#D0D7DE"
+
         # headings
-        rules.append((re.compile(r"^#{1,6}\s.*$", re.MULTILINE), self._fmt("#0550AE", bold=True)))
+        rules.append((re.compile(r"^#{1,6}\s.*$", re.MULTILINE), self._fmt(heading_color, bold=True)))
 
         # bold
-        rules.append((re.compile(r"\*\*(.+?)\*\*"), self._fmt("#24292F", bold=True)))
-        rules.append((re.compile(r"__(.+?)__"), self._fmt("#24292F", bold=True)))
+        rules.append((re.compile(r"\*\*(.+?)\*\*"), self._fmt(body_color, bold=True)))
+        rules.append((re.compile(r"__(.+?)__"), self._fmt(body_color, bold=True)))
 
         # italic
-        rules.append((re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"), self._fmt("#24292F", italic=True)))
-        rules.append((re.compile(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)"), self._fmt("#24292F", italic=True)))
+        rules.append((re.compile(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"), self._fmt(body_color, italic=True)))
+        rules.append((re.compile(r"(?<!_)_(?!_)(.+?)(?<!_)_(?!_)"), self._fmt(body_color, italic=True)))
 
         # strikethrough
-        rules.append((re.compile(r"~~.+?~~"), self._fmt("#6E7781")))
+        rules.append((re.compile(r"~~.+?~~"), self._fmt(strike_color)))
 
         # inline code
-        rules.append((re.compile(r"`[^`]+`"), self._fmt("#953800")))
+        rules.append((re.compile(r"`[^`]+`"), self._fmt(code_color)))
 
         # links  [text](url)
-        rules.append((re.compile(r"\[([^\]]+)\]\([^)]+\)"), self._fmt("#0969DA")))
+        rules.append((re.compile(r"\[([^\]]+)\]\([^)]+\)"), self._fmt(link_color)))
 
         # images  ![alt](url)
-        rules.append((re.compile(r"!\[([^\]]*)\]\([^)]+\)"), self._fmt("#8250DF")))
+        rules.append((re.compile(r"!\[([^\]]*)\]\([^)]+\)"), self._fmt(image_color)))
 
         # blockquotes
-        rules.append((re.compile(r"^>\s.*$", re.MULTILINE), self._fmt("#57606A", italic=True)))
+        rules.append((re.compile(r"^>\s.*$", re.MULTILINE), self._fmt(quote_color, italic=True)))
 
         # unordered lists
-        rules.append((re.compile(r"^\s*[-*+]\s", re.MULTILINE), self._fmt("#CF222E")))
+        rules.append((re.compile(r"^\s*[-*+]\s", re.MULTILINE), self._fmt(list_color)))
 
         # ordered lists
-        rules.append((re.compile(r"^\s*\d+\.\s", re.MULTILINE), self._fmt("#CF222E")))
+        rules.append((re.compile(r"^\s*\d+\.\s", re.MULTILINE), self._fmt(list_color)))
 
         # checklists
-        rules.append((re.compile(r"^\s*-\s\[[ xX]\]", re.MULTILINE), self._fmt("#CF222E", bold=True)))
+        rules.append((re.compile(r"^\s*-\s\[[ xX]\]", re.MULTILINE), self._fmt(list_color, bold=True)))
 
         # horizontal rules
-        rules.append((re.compile(r"^(-{3,}|\*{3,}|_{3,})\s*$", re.MULTILINE), self._fmt("#D0D7DE")))
+        rules.append((re.compile(r"^(-{3,}|\*{3,}|_{3,})\s*$", re.MULTILINE), self._fmt(hr_color)))
 
         # fenced code block markers
-        rules.append((re.compile(r"^```.*$", re.MULTILINE), self._fmt("#953800")))
+        rules.append((re.compile(r"^```.*$", re.MULTILINE), self._fmt(code_color)))
+
+    def set_dark_mode(self, dark: bool):
+        self._setup_formats(dark)
+        self.rehighlight()
 
     # -- main callback ---------------------------------------------------------
 

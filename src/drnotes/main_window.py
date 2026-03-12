@@ -4,6 +4,7 @@ import re
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QLabel,
     QMainWindow,
@@ -12,6 +13,32 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+_QSS_DARK = """
+QWidget { background-color: #0d1117; color: #e6edf3; }
+QMenuBar { background-color: #161b22; }
+QMenuBar::item:selected { background-color: #21262d; }
+QMenu { background-color: #161b22; border: 1px solid #30363d; }
+QMenu::item:selected { background-color: #21262d; }
+QToolBar { background-color: #161b22; border: none; border-bottom: 1px solid #30363d; }
+QToolButton { background: transparent; border: 1px solid transparent; padding: 2px 6px; }
+QToolButton:hover { background-color: #21262d; border-color: #30363d; }
+QSplitter::handle { background-color: #30363d; }
+QTreeView { background-color: #0d1117; border: none; }
+QTreeView::item:selected { background-color: #1f6feb; color: #e6edf3; }
+QTreeView::item:hover:!selected { background-color: #161b22; }
+QPlainTextEdit, QTextEdit { background-color: #0d1117; color: #e6edf3; border: none; }
+QLineEdit { background-color: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 3px; padding: 2px 4px; }
+QPushButton { background-color: #21262d; color: #e6edf3; border: 1px solid #30363d; padding: 3px 8px; border-radius: 3px; }
+QPushButton:hover { background-color: #30363d; }
+QCheckBox { color: #e6edf3; }
+QScrollBar:vertical { background-color: #0d1117; width: 12px; }
+QScrollBar::handle:vertical { background-color: #30363d; border-radius: 5px; min-height: 20px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal { background-color: #0d1117; height: 12px; }
+QScrollBar::handle:horizontal { background-color: #30363d; border-radius: 5px; min-width: 20px; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+"""
 
 from .settings import Settings
 from .widgets import DirectoryTree, FormattingToolbar, MarkdownEditor, PreviewPanel
@@ -28,6 +55,12 @@ class MainWindow(QMainWindow):
         self._build_menu()
         self._connect_signals()
         self._restore_state()
+
+        # restore theme (must be after _build_menu so _dark_mode_action exists)
+        if self._settings.dark_mode:
+            self._dark_mode_action.setChecked(True)  # triggers _on_dark_mode_toggled
+        if self._settings.emacs_mode:
+            self._emacs_mode_action.setChecked(True)  # triggers _on_emacs_mode_toggled
 
         # debounce timer for preview updates (300 ms idle)
         self._preview_timer = QTimer(self)
@@ -146,6 +179,20 @@ class MainWindow(QMainWindow):
         split.triggered.connect(lambda: self._set_view_mode("split"))
         view_menu.addAction(split)
 
+        view_menu.addSeparator()
+
+        self._dark_mode_action = QAction("Dark Mode", self)
+        self._dark_mode_action.setCheckable(True)
+        self._dark_mode_action.setShortcut(QKeySequence("Ctrl+Alt+D"))
+        self._dark_mode_action.toggled.connect(self._on_dark_mode_toggled)
+        view_menu.addAction(self._dark_mode_action)
+
+        self._emacs_mode_action = QAction("Emacs Mode", self)
+        self._emacs_mode_action.setCheckable(True)
+        self._emacs_mode_action.setShortcut(QKeySequence("Ctrl+Alt+E"))
+        self._emacs_mode_action.toggled.connect(self._on_emacs_mode_toggled)
+        view_menu.addAction(self._emacs_mode_action)
+
     # =========================================================================
     # Signal wiring
     # =========================================================================
@@ -199,6 +246,27 @@ class MainWindow(QMainWindow):
             new_char = "x" if checked else " "
             new_content = content[: m.start(1)] + new_char + content[m.end(1) :]
             self._editor.set_text_content(new_content)
+
+    # =========================================================================
+    # Theme
+    # =========================================================================
+
+    def _on_dark_mode_toggled(self, enabled: bool):
+        self._settings.dark_mode = enabled
+        self._apply_theme(enabled)
+
+    def _on_emacs_mode_toggled(self, enabled: bool):
+        self._settings.emacs_mode = enabled
+        self._editor.set_emacs_mode(enabled)
+
+    def _apply_theme(self, dark: bool):
+        QApplication.instance().setStyleSheet(_QSS_DARK if dark else "")
+        if dark:
+            self._path_label.setStyleSheet("background: #161b22; padding: 4px 8px; color: #8b949e;")
+        else:
+            self._path_label.setStyleSheet("background: #f6f8fa; padding: 4px 8px; color: #57606a;")
+        self._editor.set_dark_mode(dark)
+        self._preview.set_dark_mode(dark)
 
     # =========================================================================
     # View mode
