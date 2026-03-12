@@ -51,6 +51,19 @@ The application window is split into two primary panels:
 - Optionally supports a **split view** showing the editor and preview side by side
 - The currently open file name and path are displayed above the editor
 
+### Status Bar (Bottom)
+
+A persistent status bar spans the full width of the window at the bottom edge:
+
+| Section | Position | Content |
+|---------|----------|---------|
+| **File path** | Left (stretches) | Absolute path of the currently open file, or "No file open" when none is selected |
+| **Last saved** | Right (fixed) | Timestamp of the most recent save in `YYYY-MM-DD HH:MM:SS` format, or "Not saved" when the file has not yet been saved in this session |
+
+- The status bar updates immediately whenever the file is saved (auto-save or Ctrl+S)
+- The timestamp resets to "Not saved" each time a new file is opened
+- The status bar respects the current dark/light theme
+
 ### Dark / Light Mode
 
 - A toggle in the View menu switches the entire application between dark and light themes
@@ -193,6 +206,7 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | FR-14 | Auto-save or save-on-switch to prevent data loss | Should have |
 | FR-15 | Dark / light mode toggle that persists across sessions | Should have |
 | FR-16 | Emacs mode: emacs-style navigation, kill/yank, and mark-based selection in the editor | Should have |
+| FR-17 | Status bar displays the currently open file's absolute path and the timestamp of the last save | Should have |
 
 ---
 

@@ -1,7 +1,7 @@
 import os
 import re
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QDateTime, QTimer, Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -24,6 +24,8 @@ QToolBar { background-color: #161b22; border: none; border-bottom: 1px solid #30
 QToolButton { background: transparent; border: 1px solid transparent; padding: 2px 6px; }
 QToolButton:hover { background-color: #21262d; border-color: #30363d; }
 QSplitter::handle { background-color: #30363d; }
+QStatusBar { background-color: #161b22; color: #8b949e; border-top: 1px solid #30363d; }
+QStatusBar QLabel { color: #8b949e; padding: 0 4px; }
 QTreeView { background-color: #0d1117; border: none; }
 QTreeView::item:selected { background-color: #1f6feb; color: #e6edf3; }
 QTreeView::item:hover:!selected { background-color: #161b22; }
@@ -42,6 +44,9 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 
 from .settings import Settings
 from .widgets import DirectoryTree, FormattingToolbar, MarkdownEditor, PreviewPanel
+
+
+_STATE_VERSION = 1  # bump when the window layout changes
 
 
 class MainWindow(QMainWindow):
@@ -96,24 +101,34 @@ class MainWindow(QMainWindow):
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
 
-        # toolbar
-        self._toolbar = FormattingToolbar(self)
-        self.addToolBar(self._toolbar)
+        # main splitter: left panel | right panel
+        self._main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # file path label
+        # left panel: filename label above directory tree
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+
         self._path_label = QLabel("  No file open")
         self._path_label.setFixedHeight(28)
         self._path_label.setStyleSheet("background: #f6f8fa; padding: 4px 8px; color: #57606a;")
-        root_layout.addWidget(self._path_label)
-
-        # main splitter: tree | (editor + preview)
-        self._main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._tree = DirectoryTree()
         self._tree.setMinimumWidth(180)
-        self._main_splitter.addWidget(self._tree)
 
-        # right side: editor + preview in a vertical splitter (split view)
+        left_layout.addWidget(self._path_label)
+        left_layout.addWidget(self._tree)
+        self._main_splitter.addWidget(left_widget)
+
+        # right panel: toolbar above editor + preview
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        self._toolbar = FormattingToolbar(self)
+
         self._right_splitter = QSplitter(Qt.Orientation.Horizontal)
 
         self._editor = MarkdownEditor()
@@ -123,10 +138,21 @@ class MainWindow(QMainWindow):
         self._right_splitter.addWidget(self._preview)
         self._right_splitter.setSizes([500, 500])
 
-        self._main_splitter.addWidget(self._right_splitter)
+        right_layout.addWidget(self._toolbar)
+        right_layout.addWidget(self._right_splitter)
+        self._main_splitter.addWidget(right_widget)
+
         self._main_splitter.setSizes([220, 980])
 
         root_layout.addWidget(self._main_splitter)
+
+        # status bar: file path (left) | last saved (right)
+        self._status_path_label = QLabel("No file open")
+        self._status_save_label = QLabel("Not saved")
+        self._status_save_label.setContentsMargins(0, 0, 6, 0)
+        sb = self.statusBar()
+        sb.addWidget(self._status_path_label, 1)
+        sb.addPermanentWidget(self._status_save_label)
 
         # apply stored view mode
         self._apply_view_mode(self._settings.view_mode)
@@ -144,7 +170,7 @@ class MainWindow(QMainWindow):
 
         save = QAction("Save", self)
         save.setShortcut(QKeySequence("Ctrl+S"))
-        save.triggered.connect(self._editor.save_current)
+        save.triggered.connect(self._save_file)
         file_menu.addAction(save)
 
         file_menu.addSeparator()
@@ -224,6 +250,8 @@ class MainWindow(QMainWindow):
         self._editor.open_file(path)
         rel = os.path.relpath(path, self._settings.notes_root)
         self._path_label.setText(f"  {rel}")
+        self._status_path_label.setText(path)
+        self._status_save_label.setText("Not saved")
         self._settings.last_file = path
         self._refresh_preview()
 
@@ -234,8 +262,13 @@ class MainWindow(QMainWindow):
     def _refresh_preview(self):
         self._preview.update_content(self._editor.get_text())
 
-    def _auto_save(self):
+    def _save_file(self):
         self._editor.save_current()
+        now = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
+        self._status_save_label.setText(f"Saved {now}")
+
+    def _auto_save(self):
+        self._save_file()
 
     def _on_checkbox_toggled(self, index: int, checked: bool):
         content = self._editor.get_text()
@@ -310,14 +343,14 @@ class MainWindow(QMainWindow):
             self.restoreGeometry(geo)
         state = self._settings.window_state
         if state:
-            self.restoreState(state)
+            self.restoreState(state, _STATE_VERSION)
         sp = self._settings.splitter_state
         if sp:
             self._main_splitter.restoreState(sp)
 
     def closeEvent(self, event):
-        self._editor.save_current()
+        self._save_file()
         self._settings.window_geometry = self.saveGeometry()
-        self._settings.window_state = self.saveState()
+        self._settings.window_state = self.saveState(_STATE_VERSION)
         self._settings.splitter_state = self._main_splitter.saveState()
         super().closeEvent(event)
