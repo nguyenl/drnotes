@@ -64,6 +64,16 @@ A persistent status bar spans the full width of the window at the bottom edge:
 - The timestamp resets to "Not saved" each time a new file is opened
 - The status bar respects the current dark/light theme
 
+### Toolbar
+
+The formatting toolbar also includes buttons for:
+- **View modes**: Editor Only, Preview Only, and Split View (mutually exclusive, with checked state indicator)
+- **Font Size**: Increase (A+) and Decrease (A–) buttons with system theme zoom icons
+- **Dark / Light Mode**: Toggle button with system theme icon
+- **Emacs Mode**: Toggle button with system theme icon
+
+All toolbar buttons use system theme icons (via `QIcon.fromTheme`) when available, falling back to text labels on platforms without a matching icon theme.
+
 ### Dark / Light Mode
 
 - A toggle in the View menu switches the entire application between dark and light themes
@@ -116,7 +126,7 @@ A persistent status bar spans the full width of the window at the bottom edge:
 
 ### Formatting Toolbar / Shortcuts
 
-The editor must provide toolbar buttons and/or keyboard shortcuts for the following common operations:
+The editor must provide toolbar buttons (with system theme icons where available, falling back to text labels) and keyboard shortcuts for the following common operations:
 
 | Action | Shortcut (default) | Markdown Output |
 |--------|-------------------|-----------------|
@@ -132,6 +142,9 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | Image | `Ctrl+Shift+I` | `![alt](path)` |
 | Blockquote | `Ctrl+Shift+Q` | `> text` |
 | Horizontal rule | --- | `---` |
+| Increase font size | `Ctrl+=` | — |
+| Decrease font size | `Ctrl+-` | — |
+| Reset font size | `Ctrl+0` | — |
 
 ### Checklist Behavior
 
@@ -197,7 +210,7 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | FR-04 | Markdown editor provides syntax highlighting | Must have |
 | FR-05 | Markdown preview renders standard CommonMark/GFM markdown to HTML | Must have |
 | FR-06 | Mermaid code blocks render as diagrams in preview mode | Must have |
-| FR-07 | Toolbar and keyboard shortcuts for formatting (bold, italic, lists, checklists, etc.) | Must have |
+| FR-07 | Toolbar with icons and keyboard shortcuts for formatting (bold, italic, lists, checklists, etc.) | Must have |
 | FR-08 | Checklists in preview mode are interactive and write state back to the file | Should have |
 | FR-09 | Editor supports find and replace | Should have |
 | FR-10 | User can choose and change the notes root directory | Must have |
@@ -209,6 +222,8 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | FR-16 | Emacs mode: emacs-style navigation, kill/yank, and mark-based selection in the editor | Should have |
 | FR-17 | Status bar displays the currently open file's absolute path and the timestamp of the last save | Should have |
 | FR-18 | Full-text search across all notes with results grouped by file, clickable to navigate to the match | Should have |
+| FR-19 | Toolbar buttons for view mode (editor/preview/split), dark/light mode toggle, and emacs mode toggle with system theme icons | Should have |
+| FR-20 | Adjustable editor font size via menu, toolbar, and keyboard shortcuts (Ctrl+=, Ctrl+-, Ctrl+0), persisted across sessions | Should have |
 
 ---
 

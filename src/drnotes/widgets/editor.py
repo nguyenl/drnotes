@@ -177,7 +177,7 @@ class _EditorCore(QPlainTextEdit):
         font.setFixedPitch(True)
         font.setPointSize(11)
         self.setFont(font)
-        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
+        self._update_tab_stop()
         self.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
 
         # syntax highlighter
@@ -215,6 +215,31 @@ class _EditorCore(QPlainTextEdit):
             cursor = self.textCursor()
             cursor.setPosition(cursor.position())
             self.setTextCursor(cursor)
+
+    # -- font size -------------------------------------------------------------
+
+    _MIN_FONT_SIZE = 6
+    _MAX_FONT_SIZE = 72
+
+    def set_font_size(self, size: int):
+        size = max(self._MIN_FONT_SIZE, min(self._MAX_FONT_SIZE, size))
+        font = self.font()
+        font.setPointSize(size)
+        self.setFont(font)
+        self._update_tab_stop()
+        self._update_line_area_width()
+
+    def increase_font_size(self):
+        self.set_font_size(self.font().pointSize() + 1)
+
+    def decrease_font_size(self):
+        self.set_font_size(self.font().pointSize() - 1)
+
+    def reset_font_size(self):
+        self.set_font_size(11)
+
+    def _update_tab_stop(self):
+        self.setTabStopDistance(self.fontMetrics().horizontalAdvance(" ") * 4)
 
     # -- emacs keybinding handling ---------------------------------------------
 
@@ -655,6 +680,21 @@ class MarkdownEditor(QWidget):
 
     def set_emacs_mode(self, enabled: bool):
         self._editor.set_emacs_mode(enabled)
+
+    def set_font_size(self, size: int):
+        self._editor.set_font_size(size)
+
+    def increase_font_size(self):
+        self._editor.increase_font_size()
+
+    def decrease_font_size(self):
+        self._editor.decrease_font_size()
+
+    def reset_font_size(self):
+        self._editor.reset_font_size()
+
+    def font_size(self) -> int:
+        return self._editor.font().pointSize()
 
     def show_find(self):
         self._find_bar.activate()

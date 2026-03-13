@@ -89,3 +89,13 @@ class Settings:
     @emacs_mode.setter
     def emacs_mode(self, enabled: bool):
         self._s.setValue("emacs_mode", enabled)
+
+    # -- font size -------------------------------------------------------------
+
+    @property
+    def font_size(self) -> int:
+        return self._s.value("font_size", 11, type=int)
+
+    @font_size.setter
+    def font_size(self, size: int):
+        self._s.setValue("font_size", size)

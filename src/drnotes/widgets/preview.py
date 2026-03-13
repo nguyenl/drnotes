@@ -104,6 +104,10 @@ window.addEventListener('wheel', function(e) {
     }
 }, { passive: false });
 
+function setFontSize(px) {
+    document.body.style.fontSize = px + "px";
+}
+
 function setDarkMode(enabled) {
     _darkMode = enabled;
     if (enabled) {
@@ -237,6 +241,7 @@ class PreviewPanel(QWidget):
         self._page_ready = False
         self._scroll_sync = False
         self._dark_mode = False
+        self._font_size_px: int | None = None
         self._pending: str | None = None
 
         layout = QVBoxLayout(self)
@@ -313,6 +318,12 @@ class PreviewPanel(QWidget):
 
     # -- internals -------------------------------------------------------------
 
+    def set_font_size(self, editor_pt: int):
+        """Set preview font size proportional to the editor point size."""
+        self._font_size_px = round(editor_pt * 14 / 11)
+        if self._page_ready:
+            self._view.page().runJavaScript(f"setFontSize({self._font_size_px});")
+
     def set_dark_mode(self, enabled: bool):
         self._dark_mode = enabled
         if self._page_ready:
@@ -325,6 +336,8 @@ class PreviewPanel(QWidget):
             self._view.page().runJavaScript("setDarkMode(true);")
         if self._scroll_sync:
             self._view.page().runJavaScript("setScrollSync(true);")
+        if self._font_size_px is not None:
+            self._view.page().runJavaScript(f"setFontSize({self._font_size_px});")
         if self._pending is not None:
             self._push(self._pending)
             self._pending = None

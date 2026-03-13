@@ -15,14 +15,16 @@ A cross-platform desktop markdown note-taking application that stores all data a
 - Auto-save after 5 seconds of idle time
 - Smart list continuation (ordered, unordered, and checklists)
 - Tab/Shift+Tab for indent/outdent
-- Formatting toolbar and keyboard shortcuts
+- Formatting toolbar with icons (system theme) and keyboard shortcuts
+- Adjustable font size (increase, decrease, reset) from menu, toolbar, or keyboard
+- Toolbar buttons for view mode, dark/light mode, and emacs mode toggles
 
 ### Live Preview
 - Side-by-side split view with synchronized scrolling
 - CommonMark/GFM markdown rendering
 - Interactive checklists — click to toggle, changes write back to the file
 - Syntax-highlighted code blocks via Pygments
-- Three view modes: Editor Only, Preview Only, Split View
+- Three view modes: Editor Only, Preview Only, Split View (switchable from menu or toolbar)
 
 ### Mermaid Diagrams
 Fenced ` ```mermaid ` code blocks render as diagrams in the preview, including:
@@ -57,13 +59,21 @@ Invalid syntax displays an inline error message rather than failing silently.
 | Link | `Ctrl+K` |
 | Image | `Ctrl+Shift+I` |
 | Blockquote | `Ctrl+Shift+Q` |
+| Increase Font Size | `Ctrl+=` |
+| Decrease Font Size | `Ctrl+-` |
+| Reset Font Size | `Ctrl+0` |
 | Search in Files | `Ctrl+Shift+F` |
+| Editor Only | `Ctrl+Alt+1` |
+| Preview Only | `Ctrl+Alt+2` |
+| Split View | `Ctrl+Alt+3` |
+| Dark Mode | `Ctrl+Alt+D` |
+| Emacs Mode | `Ctrl+Alt+E` |
 
 ### Emacs Mode
-Optional emacs-style keybindings for navigation, kill/yank, and mark-based selection (20+ bindings). Toggle from the View menu; the setting persists across sessions.
+Optional emacs-style keybindings for navigation, kill/yank, and mark-based selection (20+ bindings). Toggle from the View menu or the toolbar; the setting persists across sessions.
 
 ### Themes
-Dark and light mode with a toggle in the View menu. The theme applies to the editor, UI chrome, and preview pane, and persists across sessions.
+Dark and light mode with a toggle in the View menu or the toolbar. The theme applies to the editor, UI chrome, and preview pane, and persists across sessions.
 
 ### Status Bar
 Displays the current file path and last-saved timestamp, updating immediately on each save.

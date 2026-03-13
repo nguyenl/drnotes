@@ -2,7 +2,7 @@ import os
 import re
 
 from PySide6.QtCore import QDateTime, QTimer, Qt
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -59,6 +59,9 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
 
+        # apply stored view mode (must be after _build_menu so view actions exist)
+        self._apply_view_mode(self._settings.view_mode)
+
         # debounce timer for preview updates (300 ms idle)
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
@@ -79,6 +82,12 @@ class MainWindow(QMainWindow):
             self._dark_mode_action.setChecked(True)  # triggers _on_dark_mode_toggled
         if self._settings.emacs_mode:
             self._emacs_mode_action.setChecked(True)  # triggers _on_emacs_mode_toggled
+
+        # restore font size
+        saved_size = self._settings.font_size
+        if saved_size != 11:
+            self._editor.set_font_size(saved_size)
+            self._preview.set_font_size(saved_size)
 
         # first-launch: ask for notes directory
         if not self._settings.notes_root or not os.path.isdir(self._settings.notes_root):
@@ -159,9 +168,6 @@ class MainWindow(QMainWindow):
         sb.addWidget(self._status_path_label, 1)
         sb.addPermanentWidget(self._status_save_label)
 
-        # apply stored view mode
-        self._apply_view_mode(self._settings.view_mode)
-
     def _build_menu(self):
         mb: QMenuBar = self.menuBar()
 
@@ -207,34 +213,85 @@ class MainWindow(QMainWindow):
         # -- View menu ---------------------------------------------------------
         view_menu = mb.addMenu("&View")
 
-        edit_only = QAction("Editor Only", self)
-        edit_only.setShortcut(QKeySequence("Ctrl+Alt+1"))
-        edit_only.triggered.connect(lambda: self._set_view_mode("edit"))
-        view_menu.addAction(edit_only)
+        # View mode actions (checkable, mutually exclusive, shared with toolbar)
+        self._view_group = QActionGroup(self)
+        self._view_group.setExclusive(True)
 
-        preview_only = QAction("Preview Only", self)
-        preview_only.setShortcut(QKeySequence("Ctrl+Alt+2"))
-        preview_only.triggered.connect(lambda: self._set_view_mode("preview"))
-        view_menu.addAction(preview_only)
+        self._edit_only_action = self._make_view_action(
+            "Editor Only", "Ctrl+Alt+1", "edit", "accessories-text-editor",
+        )
+        view_menu.addAction(self._edit_only_action)
 
-        split = QAction("Split View", self)
-        split.setShortcut(QKeySequence("Ctrl+Alt+3"))
-        split.triggered.connect(lambda: self._set_view_mode("split"))
-        view_menu.addAction(split)
+        self._preview_only_action = self._make_view_action(
+            "Preview Only", "Ctrl+Alt+2", "preview", "text-html",
+        )
+        view_menu.addAction(self._preview_only_action)
+
+        self._split_view_action = self._make_view_action(
+            "Split View", "Ctrl+Alt+3", "split", "view-dual-symbolic",
+        )
+        view_menu.addAction(self._split_view_action)
 
         view_menu.addSeparator()
 
         self._dark_mode_action = QAction("Dark Mode", self)
         self._dark_mode_action.setCheckable(True)
         self._dark_mode_action.setShortcut(QKeySequence("Ctrl+Alt+D"))
+        self._dark_mode_action.setToolTip("Toggle Dark Mode (Ctrl+Alt+D)")
+        self._set_action_icon(self._dark_mode_action, "weather-clear-night")
         self._dark_mode_action.toggled.connect(self._on_dark_mode_toggled)
         view_menu.addAction(self._dark_mode_action)
 
         self._emacs_mode_action = QAction("Emacs Mode", self)
         self._emacs_mode_action.setCheckable(True)
         self._emacs_mode_action.setShortcut(QKeySequence("Ctrl+Alt+E"))
+        self._emacs_mode_action.setToolTip("Toggle Emacs Mode (Ctrl+Alt+E)")
+        self._set_action_icon(self._emacs_mode_action, "input-keyboard")
         self._emacs_mode_action.toggled.connect(self._on_emacs_mode_toggled)
         view_menu.addAction(self._emacs_mode_action)
+
+        view_menu.addSeparator()
+
+        increase_font = QAction("Increase Font Size", self)
+        increase_font.setShortcut(QKeySequence("Ctrl+="))
+        increase_font.triggered.connect(self._increase_font_size)
+        view_menu.addAction(increase_font)
+
+        decrease_font = QAction("Decrease Font Size", self)
+        decrease_font.setShortcut(QKeySequence("Ctrl+-"))
+        decrease_font.triggered.connect(self._decrease_font_size)
+        view_menu.addAction(decrease_font)
+
+        reset_font = QAction("Reset Font Size", self)
+        reset_font.setShortcut(QKeySequence("Ctrl+0"))
+        reset_font.triggered.connect(self._reset_font_size)
+        view_menu.addAction(reset_font)
+
+        # Add view/mode actions to the formatting toolbar
+        self._toolbar.addSeparator()
+        self._toolbar.addAction(self._edit_only_action)
+        self._toolbar.addAction(self._preview_only_action)
+        self._toolbar.addAction(self._split_view_action)
+        self._toolbar.addSeparator()
+        self._toolbar.addAction(self._dark_mode_action)
+        self._toolbar.addAction(self._emacs_mode_action)
+
+    def _make_view_action(self, label: str, shortcut: str, mode: str,
+                          icon_name: str) -> QAction:
+        action = QAction(label, self)
+        action.setCheckable(True)
+        action.setShortcut(QKeySequence(shortcut))
+        action.setToolTip(f"{label} ({shortcut})")
+        self._set_action_icon(action, icon_name)
+        action.triggered.connect(lambda: self._set_view_mode(mode))
+        self._view_group.addAction(action)
+        return action
+
+    @staticmethod
+    def _set_action_icon(action: QAction, icon_name: str):
+        icon = QIcon.fromTheme(icon_name)
+        if not icon.isNull():
+            action.setIcon(icon)
 
     # =========================================================================
     # Signal wiring
@@ -251,6 +308,8 @@ class MainWindow(QMainWindow):
         self._toolbar.wrap_requested.connect(self._editor.insert_wrap)
         self._toolbar.line_prefix_requested.connect(self._editor.insert_line_prefix)
         self._toolbar.block_requested.connect(self._editor.insert_block)
+        self._toolbar.font_size_increase_requested.connect(self._increase_font_size)
+        self._toolbar.font_size_decrease_requested.connect(self._decrease_font_size)
 
         # preview checkbox → update source
         self._preview.checkbox_toggled.connect(self._on_checkbox_toggled)
@@ -316,6 +375,23 @@ class MainWindow(QMainWindow):
         self._settings.emacs_mode = enabled
         self._editor.set_emacs_mode(enabled)
 
+    def _increase_font_size(self):
+        self._editor.increase_font_size()
+        self._sync_font_size()
+
+    def _decrease_font_size(self):
+        self._editor.decrease_font_size()
+        self._sync_font_size()
+
+    def _reset_font_size(self):
+        self._editor.reset_font_size()
+        self._sync_font_size()
+
+    def _sync_font_size(self):
+        size = self._editor.font_size()
+        self._settings.font_size = size
+        self._preview.set_font_size(size)
+
     def _apply_theme(self, dark: bool):
         QApplication.instance().setStyleSheet(_QSS_DARK if dark else "")
         if dark:
@@ -334,6 +410,15 @@ class MainWindow(QMainWindow):
         self._apply_view_mode(mode)
 
     def _apply_view_mode(self, mode: str):
+        # Sync the view-mode action group checked state
+        action_map = {
+            "edit": self._edit_only_action,
+            "preview": self._preview_only_action,
+            "split": self._split_view_action,
+        }
+        action = action_map.get(mode, self._split_view_action)
+        action.setChecked(True)
+
         if mode == "edit":
             self._editor.show()
             self._preview.hide()
