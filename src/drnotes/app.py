@@ -1,4 +1,7 @@
+import os
 import sys
+
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-vulkan")
 
 from PySide6.QtWidgets import QApplication
 
