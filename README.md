@@ -1,10 +1,14 @@
 # DrNotes
 
-A cross-platform desktop markdown note-taking application that stores all data as plain `.md` files on your local filesystem. No cloud, no databases, no lock-in — just your notes as files.
+A cross-platform desktop markdown note-taking application that stores all data as plain `.md` files on your local filesystem. Mermaid diagrams and code syntax highlighting right inside the preview. No cloud, no databases, no lock-in — just your notes as files.
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)
+
+# Screenshot
+
+<img width="1736" height="1106" alt="image" src="https://github.com/user-attachments/assets/7d34719a-dffb-4f71-953c-1281875229c1" />
 
 ## Features
 
@@ -20,6 +24,7 @@ A cross-platform desktop markdown note-taking application that stores all data a
 - Toolbar buttons for view mode, dark/light mode, and emacs mode toggles
 
 ### Live Preview
+- Fully rendered mermaid diagrams
 - Side-by-side split view with synchronized scrolling
 - CommonMark/GFM markdown rendering
 - Interactive checklists — click to toggle, changes write back to the file
