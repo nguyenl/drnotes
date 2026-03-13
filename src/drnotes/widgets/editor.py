@@ -659,6 +659,14 @@ class MarkdownEditor(QWidget):
     def show_find(self):
         self._find_bar.activate()
 
+    def goto_line(self, line: int):
+        """Move cursor to the given line number (1-based) and center it."""
+        block = self._editor.document().findBlockByLineNumber(line - 1)
+        if block.isValid():
+            cursor = QTextCursor(block)
+            self._editor.setTextCursor(cursor)
+            self._editor.centerCursor()
+
     # -- formatting passthrough ------------------------------------------------
 
     def insert_wrap(self, prefix: str, suffix: str):

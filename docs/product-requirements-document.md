@@ -111,6 +111,7 @@ A persistent status bar spans the full width of the window at the bottom edge:
 - Line numbers
 - Undo / redo
 - Find and replace within the current note
+- Full-text search across all notes in the directory (`Ctrl+Shift+F`)
 - Auto-indent and soft-wrap
 
 ### Formatting Toolbar / Shortcuts
@@ -207,6 +208,7 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 | FR-15 | Dark / light mode toggle that persists across sessions | Should have |
 | FR-16 | Emacs mode: emacs-style navigation, kill/yank, and mark-based selection in the editor | Should have |
 | FR-17 | Status bar displays the currently open file's absolute path and the timestamp of the last save | Should have |
+| FR-18 | Full-text search across all notes with results grouped by file, clickable to navigate to the match | Should have |
 
 ---
 
@@ -223,7 +225,6 @@ The editor must provide toolbar buttons and/or keyboard shortcuts for the follow
 
 ## Future Considerations (Out of Scope for v1)
 
-- Full-text search across all notes
 - Tag or metadata system (e.g., YAML front matter)
 - Export to PDF or HTML
 - Version history / git integration

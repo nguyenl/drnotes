@@ -10,6 +10,7 @@ DrNotes follows a **widget-composition** architecture. A single `MainWindow` orc
 graph TD
     App[app.py<br>QApplication] --> MW[MainWindow<br>Orchestrator]
     MW --> DT[DirectoryTree<br>File Browser]
+    MW --> SP[SearchPanel<br>Cross-File Search]
     MW --> TB[FormattingToolbar<br>Shortcuts]
     MW --> ED[MarkdownEditor<br>Text Editing]
     MW --> PP[PreviewPanel<br>HTML Rendering]
@@ -33,6 +34,7 @@ src/drnotes/
     ├── editor.py            # MarkdownEditor, _EditorCore, _FindReplaceBar, _LineNumberArea
     ├── preview.py           # PreviewPanel, _Bridge, Mermaid fence formatter
     ├── directory_tree.py    # DirectoryTree: file browser with context menu
+    ├── search_panel.py      # SearchPanel: cross-file full-text search
     └── toolbar.py           # FormattingToolbar: buttons + keyboard shortcuts
 ```
 
@@ -78,6 +80,7 @@ The MainWindow acts as a mediator. Widgets never reference each other directly �
 flowchart LR
     subgraph Widgets
         DT[DirectoryTree]
+        SP[SearchPanel]
         TB[FormattingToolbar]
         ED[MarkdownEditor]
         PP[PreviewPanel]
@@ -104,6 +107,9 @@ flowchart LR
 
     ED -- scroll_fraction_changed --> PP
     PP -- wheel_event --> ED
+
+    SP -- result_selected --> MW
+    MW -- open_file_at_line --> ED
 ```
 
 ### Key signal paths
@@ -117,6 +123,7 @@ flowchart LR
 | User clicks checkbox in preview | `PreviewPanel.checkbox_toggled` → `MainWindow._on_checkbox_toggled` → `MarkdownEditor.set_text_content` | `- [ ]` ↔ `- [x]` toggled in source |
 | User scrolls editor | `MarkdownEditor.scroll_fraction_changed` → `PreviewPanel.set_scroll_fraction` | Preview scrolls to match |
 | User scrolls preview | `PreviewPanel.wheel_event` → `MarkdownEditor.adjust_scroll_by` | Editor scrolls to match |
+| User double-clicks search result | `SearchPanel.result_selected` → `MainWindow._open_file_at_line` → `MarkdownEditor.goto_line` | File opened and cursor jumps to matching line |
 
 ## Widget Architecture
 
@@ -125,7 +132,7 @@ flowchart LR
 The central orchestrator. Responsibilities:
 
 - **Layout**: Assembles a two-level splitter (left: directory tree, right: toolbar + editor/preview split)
-- **Menus**: File (new, save, change directory, exit), Edit (find/replace), View (view modes, dark mode, emacs mode)
+- **Menus**: File (new, save, change directory, exit), Edit (find/replace, search in files), View (view modes, dark mode, emacs mode)
 - **Timers**: Debounced preview refresh (300ms) and auto-save (5s)
 - **Theme**: Applies a Qt stylesheet (`_QSS_DARK`) globally and propagates dark mode to child widgets
 - **State persistence**: Saves/restores window geometry, splitter positions, and view mode on close/open
@@ -139,6 +146,7 @@ graph TD
 
         LP --> PL[Path Label]
         LP --> DT[DirectoryTree]
+        LP --> SP[SearchPanel]
 
         RP --> TB[FormattingToolbar]
         RP --> RS[Right Splitter - Horizontal]
@@ -215,6 +223,16 @@ File browser built on `QFileSystemModel` + `QTreeView`.
 - Context menu: New Note, New Folder, Rename, Delete (with confirmation)
 - Button bar at top for quick note/folder creation
 - Emits `file_selected(path)` on click
+
+### SearchPanel (`widgets/search_panel.py`)
+
+Cross-file full-text search, togglable via `Ctrl+Shift+F`.
+
+- Walks all `.md` files under the notes root using `os.walk()`
+- Regex-based matching with optional case sensitivity
+- Results displayed in a `QTreeWidget` grouped by file, with line numbers and previews
+- Double-clicking a result emits `result_selected(path, line)`, which MainWindow routes to open the file and jump to the matching line
+- Hidden by default; activated from the Edit menu or keyboard shortcut
 
 ### FormattingToolbar (`widgets/toolbar.py`)
 

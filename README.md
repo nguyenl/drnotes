@@ -11,6 +11,7 @@ A cross-platform desktop markdown note-taking application that stores all data a
 ### Editor
 - Markdown syntax highlighting with line numbers
 - Undo/redo, find and replace
+- Full-text search across all notes (`Ctrl+Shift+F`)
 - Auto-save after 5 seconds of idle time
 - Smart list continuation (ordered, unordered, and checklists)
 - Tab/Shift+Tab for indent/outdent
@@ -56,6 +57,7 @@ Invalid syntax displays an inline error message rather than failing silently.
 | Link | `Ctrl+K` |
 | Image | `Ctrl+Shift+I` |
 | Blockquote | `Ctrl+Shift+Q` |
+| Search in Files | `Ctrl+Shift+F` |
 
 ### Emacs Mode
 Optional emacs-style keybindings for navigation, kill/yank, and mark-based selection (20+ bindings). Toggle from the View menu; the setting persists across sessions.
@@ -129,5 +131,6 @@ src/drnotes/
     ├── editor.py           # Markdown editor with find/replace
     ├── preview.py          # HTML preview with Mermaid rendering
     ├── directory_tree.py   # File/folder browser
+    ├── search_panel.py     # Cross-file text search
     └── toolbar.py          # Formatting toolbar
 ```

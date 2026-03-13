@@ -43,7 +43,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 """
 
 from .settings import Settings
-from .widgets import DirectoryTree, FormattingToolbar, MarkdownEditor, PreviewPanel
+from .widgets import DirectoryTree, FormattingToolbar, MarkdownEditor, PreviewPanel, SearchPanel
 
 
 _STATE_VERSION = 1  # bump when the window layout changes
@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
             self._choose_notes_dir()
         else:
             self._tree.set_root(self._settings.notes_root)
+            self._search_panel.set_root(self._settings.notes_root)
 
         # reopen last file
         last = self._settings.last_file
@@ -118,8 +119,11 @@ class MainWindow(QMainWindow):
         self._tree = DirectoryTree()
         self._tree.setMinimumWidth(180)
 
+        self._search_panel = SearchPanel()
+
         left_layout.addWidget(self._path_label)
         left_layout.addWidget(self._tree)
+        left_layout.addWidget(self._search_panel)
         self._main_splitter.addWidget(left_widget)
 
         # right panel: toolbar above editor + preview
@@ -195,6 +199,11 @@ class MainWindow(QMainWindow):
         find.triggered.connect(self._editor.show_find)
         edit_menu.addAction(find)
 
+        search_files = QAction("Search in Files", self)
+        search_files.setShortcut(QKeySequence("Ctrl+Shift+F"))
+        search_files.triggered.connect(self._search_panel.activate)
+        edit_menu.addAction(search_files)
+
         # -- View menu ---------------------------------------------------------
         view_menu = mb.addMenu("&View")
 
@@ -250,6 +259,9 @@ class MainWindow(QMainWindow):
         self._editor.scroll_fraction_changed.connect(self._preview.set_scroll_fraction)
         self._preview.wheel_event.connect(self._editor.adjust_scroll_by)
 
+        # search panel → open file at line
+        self._search_panel.result_selected.connect(self._open_file_at_line)
+
     # =========================================================================
     # Slots
     # =========================================================================
@@ -262,6 +274,10 @@ class MainWindow(QMainWindow):
         self._status_save_label.setText("Not saved")
         self._settings.last_file = path
         self._refresh_preview()
+
+    def _open_file_at_line(self, path: str, line: int):
+        self._open_file(path)
+        self._editor.goto_line(line)
 
     def _on_content_changed(self, _text: str):
         self._preview_timer.start()
@@ -340,6 +356,7 @@ class MainWindow(QMainWindow):
         if path:
             self._settings.notes_root = path
             self._tree.set_root(path)
+            self._search_panel.set_root(path)
 
     # =========================================================================
     # State persistence
