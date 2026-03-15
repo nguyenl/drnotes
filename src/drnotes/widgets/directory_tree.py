@@ -148,6 +148,15 @@ class DirectoryTree(QWidget):
         new_name, ok = QInputDialog.getText(self, "Rename", "New name:", text=old_name)
         if ok and new_name and new_name != old_name:
             new_path = os.path.join(os.path.dirname(path), new_name)
+            if os.path.exists(new_path):
+                reply = QMessageBox.question(
+                    self,
+                    "Overwrite?",
+                    f"'{new_name}' already exists. Overwrite it?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                )
+                if reply != QMessageBox.StandardButton.Yes:
+                    return
             os.rename(path, new_path)
 
     def _delete_selected(self):

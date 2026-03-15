@@ -1,4 +1,6 @@
+import os
 import re
+import tempfile
 
 from PySide6.QtCore import QEvent, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
@@ -653,8 +655,17 @@ class MarkdownEditor(QWidget):
     def save_current(self):
         if self._current_file and self._modified:
             try:
-                with open(self._current_file, "w", encoding="utf-8") as f:
-                    f.write(self._editor.toPlainText())
+                dir_path = os.path.dirname(self._current_file)
+                fd, tmp_path = tempfile.mkstemp(
+                    dir=dir_path, suffix=".tmp", prefix=".drnotes_"
+                )
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(self._editor.toPlainText())
+                    os.replace(tmp_path, self._current_file)
+                except BaseException:
+                    os.unlink(tmp_path)
+                    raise
             except OSError:
                 pass
             self._modified = False
