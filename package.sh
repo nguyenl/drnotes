@@ -50,6 +50,7 @@ echo "Packaging DrNotes..."
     --hidden-import pygments.styles.tango \
     --hidden-import pygments.styles.github_dark \
     --collect-all pygments \
+    --add-data "$SCRIPT_DIR/src/drnotes/assets:drnotes/assets" \
     "$SCRIPT_DIR/src/drnotes/__main__.py"
 
 echo ""

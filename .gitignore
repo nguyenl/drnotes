@@ -16,4 +16,7 @@ htmlcov/
 *.log
 .env
 .DS_Store
+Thumbs.db
+*.tmp
+*.swp
 *.spec

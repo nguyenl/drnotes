@@ -1,11 +1,20 @@
 import base64
+from pathlib import Path
 
 import markdown
 from pygments.formatters import HtmlFormatter
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
+
+# Resolve bundled mermaid.min.js path for offline rendering
+# When frozen by PyInstaller, sys._MEIPASS is the extraction root
+import sys as _sys
+if getattr(_sys, "frozen", False):
+    _ASSETS_DIR = Path(_sys._MEIPASS) / "drnotes" / "assets"
+else:
+    _ASSETS_DIR = Path(__file__).resolve().parent.parent / "assets"
 
 # ---------------------------------------------------------------------------
 # HTML shell loaded once; content is hot-swapped via JS to preserve scroll
@@ -81,7 +90,7 @@ body.dark .mermaid-error { color: #ff7b72; background: #1a0a0a; border-color: #f
 .highlight pre code { padding: 0; font-size: 100%; }
 %%PYGMENTS_CSS%%
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="mermaid.min.js"></script>
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 <script>
 var bridge = null;
@@ -193,6 +202,9 @@ _PYGMENTS_CSS = "\n".join([
 ])
 _PAGE_TEMPLATE = _PAGE_TEMPLATE.replace("%%PYGMENTS_CSS%%", _PYGMENTS_CSS)
 
+# Base URL for setHtml so the browser can resolve the external mermaid.min.js
+_BASE_URL = QUrl.fromLocalFile(str(_ASSETS_DIR) + "/")
+
 
 # ---------------------------------------------------------------------------
 # Bridge object exposed to JS via QWebChannel
@@ -261,7 +273,7 @@ class PreviewPanel(QWidget):
 
         # load the shell page
         self._view.page().loadFinished.connect(self._on_page_ready)
-        self._view.setHtml(_PAGE_TEMPLATE)
+        self._view.setHtml(_PAGE_TEMPLATE, _BASE_URL)
 
         # markdown renderer
         self._md = markdown.Markdown(
@@ -331,6 +343,8 @@ class PreviewPanel(QWidget):
             self._view.page().runJavaScript(f"setDarkMode({js});")
 
     def _on_page_ready(self, ok: bool):
+        if not ok:
+            return
         self._page_ready = True
         if self._dark_mode:
             self._view.page().runJavaScript("setDarkMode(true);")
