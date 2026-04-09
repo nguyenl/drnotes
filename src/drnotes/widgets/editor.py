@@ -618,6 +618,7 @@ class MarkdownEditor(QWidget):
         super().__init__(parent)
         self._current_file: str | None = None
         self._modified = False
+        self._suppress_text_changed = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -647,13 +648,17 @@ class MarkdownEditor(QWidget):
         try:
             text = open(path, encoding="utf-8").read()
         except OSError:
-            return
+            return False
         self._current_file = path
+        self._suppress_text_changed = True
         self._editor.setPlainText(text)
+        self._suppress_text_changed = False
         self._modified = False
+        return True
 
     def save_current(self):
         if self._current_file and self._modified:
+            saved = False
             try:
                 dir_path = os.path.dirname(self._current_file)
                 fd, tmp_path = tempfile.mkstemp(
@@ -663,12 +668,16 @@ class MarkdownEditor(QWidget):
                     with os.fdopen(fd, "w", encoding="utf-8") as f:
                         f.write(self._editor.toPlainText())
                     os.replace(tmp_path, self._current_file)
+                    saved = True
                 except BaseException:
                     os.unlink(tmp_path)
                     raise
             except OSError:
                 pass
-            self._modified = False
+            if saved:
+                self._modified = False
+            return saved
+        return False
 
     def get_text(self) -> str:
         return self._editor.toPlainText()
@@ -732,6 +741,8 @@ class MarkdownEditor(QWidget):
     # -- internal --------------------------------------------------------------
 
     def _on_text_changed(self):
+        if self._suppress_text_changed:
+            return
         self._modified = True
         self.content_changed.emit(self._editor.toPlainText())
 

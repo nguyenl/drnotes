@@ -1,8 +1,10 @@
 # drnotes Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-15
+Auto-generated from all feature plans. Last updated: 2026-04-08
 
 ## Active Technologies
+- Python 3.10+ + PySide6 >=6.6.0, markdown >=3.5, pymdown-extensions >=10.0, Pygments >=2.17 (002-multi-file-tabs)
+- Plain `.md` files on the local filesystem; QSettings for global preferences and last-opened file (002-multi-file-tabs)
 
 - Python 3.10+ + PySide6 >=6.6.0 (Qt 6 GUI), markdown >=3.5, pymdown-extensions >=10.0, Pygments >=2.17 (001-establishing-baseline-specs)
 
@@ -37,6 +39,7 @@ bash package.sh             # Build standalone binary
 Python 3.10+: Follow standard conventions
 
 ## Recent Changes
+- 002-multi-file-tabs: Added Python 3.10+ + PySide6 >=6.6.0, markdown >=3.5, pymdown-extensions >=10.0, Pygments >=2.17
 
 - 001-establishing-baseline-specs: Added Python 3.10+ + PySide6 >=6.6.0 (Qt 6 GUI), markdown >=3.5, pymdown-extensions >=10.0, Pygments >=2.17
 
