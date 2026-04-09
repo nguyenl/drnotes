@@ -1,7 +1,6 @@
 import os
-import re
 
-from PySide6.QtCore import QDateTime, QTimer, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -43,10 +42,10 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
 """
 
 from .settings import Settings
-from .widgets import DirectoryTree, FormattingToolbar, MarkdownEditor, PreviewPanel, SearchPanel
+from .widgets import DirectoryTree, FormattingToolbar, SearchPanel, WorkspaceTabs
 
 
-_STATE_VERSION = 1  # bump when the window layout changes
+_STATE_VERSION = 2  # bump when the window layout changes
 
 
 class MainWindow(QMainWindow):
@@ -62,18 +61,6 @@ class MainWindow(QMainWindow):
         # apply stored view mode (must be after _build_menu so view actions exist)
         self._apply_view_mode(self._settings.view_mode)
 
-        # debounce timer for preview updates (300 ms idle)
-        self._preview_timer = QTimer(self)
-        self._preview_timer.setSingleShot(True)
-        self._preview_timer.setInterval(300)
-        self._preview_timer.timeout.connect(self._refresh_preview)
-
-        # auto-save timer (5 s idle after change)
-        self._save_timer = QTimer(self)
-        self._save_timer.setSingleShot(True)
-        self._save_timer.setInterval(5000)
-        self._save_timer.timeout.connect(self._auto_save)
-
         self._connect_signals()
         self._restore_state()
 
@@ -85,9 +72,7 @@ class MainWindow(QMainWindow):
 
         # restore font size
         saved_size = self._settings.font_size
-        if saved_size != 11:
-            self._editor.set_font_size(saved_size)
-            self._preview.set_font_size(saved_size)
+        self._workspaces.set_font_size(saved_size)
 
         # first-launch: ask for notes directory
         if not self._settings.notes_root or not os.path.isdir(self._settings.notes_root):
@@ -95,6 +80,7 @@ class MainWindow(QMainWindow):
         else:
             self._tree.set_root(self._settings.notes_root)
             self._search_panel.set_root(self._settings.notes_root)
+            self._workspaces.set_notes_root(self._settings.notes_root)
 
         # reopen last file
         last = self._settings.last_file
@@ -142,18 +128,10 @@ class MainWindow(QMainWindow):
         right_layout.setSpacing(0)
 
         self._toolbar = FormattingToolbar(self)
-
-        self._right_splitter = QSplitter(Qt.Orientation.Horizontal)
-
-        self._editor = MarkdownEditor()
-        self._preview = PreviewPanel()
-
-        self._right_splitter.addWidget(self._editor)
-        self._right_splitter.addWidget(self._preview)
-        self._right_splitter.setSizes([500, 500])
+        self._workspaces = WorkspaceTabs()
 
         right_layout.addWidget(self._toolbar)
-        right_layout.addWidget(self._right_splitter)
+        right_layout.addWidget(self._workspaces)
         self._main_splitter.addWidget(right_widget)
 
         self._main_splitter.setSizes([220, 980])
@@ -202,7 +180,7 @@ class MainWindow(QMainWindow):
 
         find = QAction("Find / Replace", self)
         find.setShortcut(QKeySequence("Ctrl+F"))
-        find.triggered.connect(self._editor.show_find)
+        find.triggered.connect(self._show_find)
         edit_menu.addAction(find)
 
         search_files = QAction("Search in Files", self)
@@ -301,22 +279,15 @@ class MainWindow(QMainWindow):
         # tree → open file
         self._tree.file_selected.connect(self._open_file)
 
-        # editor → debounced preview + auto-save
-        self._editor.content_changed.connect(self._on_content_changed)
+        # workspace → path/status updates
+        self._workspaces.current_context_changed.connect(self._update_workspace_context)
 
-        # toolbar → editor
-        self._toolbar.wrap_requested.connect(self._editor.insert_wrap)
-        self._toolbar.line_prefix_requested.connect(self._editor.insert_line_prefix)
-        self._toolbar.block_requested.connect(self._editor.insert_block)
+        # toolbar → active workspace
+        self._toolbar.wrap_requested.connect(self._workspaces.insert_wrap)
+        self._toolbar.line_prefix_requested.connect(self._workspaces.insert_line_prefix)
+        self._toolbar.block_requested.connect(self._workspaces.insert_block)
         self._toolbar.font_size_increase_requested.connect(self._increase_font_size)
         self._toolbar.font_size_decrease_requested.connect(self._decrease_font_size)
-
-        # preview checkbox → update source
-        self._preview.checkbox_toggled.connect(self._on_checkbox_toggled)
-
-        # scroll sync: editor ↔ preview
-        self._editor.scroll_fraction_changed.connect(self._preview.set_scroll_fraction)
-        self._preview.wheel_event.connect(self._editor.adjust_scroll_by)
 
         # search panel → open file at line
         self._search_panel.result_selected.connect(self._open_file_at_line)
@@ -326,42 +297,34 @@ class MainWindow(QMainWindow):
     # =========================================================================
 
     def _open_file(self, path: str):
-        self._editor.open_file(path)
-        rel = os.path.relpath(path, self._settings.notes_root)
-        self._path_label.setText(f"  {rel}")
-        self._status_path_label.setText(path)
-        self._status_save_label.setText("Not saved")
-        self._settings.last_file = path
-        self._refresh_preview()
+        self._workspaces.open_file(path)
 
     def _open_file_at_line(self, path: str, line: int):
-        self._open_file(path)
-        self._editor.goto_line(line)
+        self._workspaces.open_file_at_line(path, line)
 
-    def _on_content_changed(self, _text: str):
-        self._preview_timer.start()
-        self._save_timer.start()
+    def _show_find(self):
+        self._workspaces.show_find()
 
-    def _refresh_preview(self):
-        self._preview.update_content(self._editor.get_text())
+    def _update_workspace_context(self):
+        current_path = self._workspaces.current_file_path()
+        if current_path:
+            rel = self._relative_to_root(current_path)
+            self._path_label.setText(f"  {rel}")
+            self._status_path_label.setText(current_path)
+            workspace = self._workspaces.current_workspace()
+            self._status_save_label.setText(
+                workspace.last_saved_text() if workspace else "Not saved"
+            )
+            self._settings.last_file = current_path
+        else:
+            self._path_label.setText("  No file open")
+            self._status_path_label.setText("No file open")
+            self._status_save_label.setText("Not saved")
+            self._settings.last_file = ""
 
     def _save_file(self):
-        self._editor.save_current()
-        now = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
-        self._status_save_label.setText(f"Saved {now}")
-
-    def _auto_save(self):
-        self._save_file()
-
-    def _on_checkbox_toggled(self, index: int, checked: bool):
-        content = self._editor.get_text()
-        pattern = re.compile(r"- \[([ xX])\]")
-        matches = list(pattern.finditer(content))
-        if index < len(matches):
-            m = matches[index]
-            new_char = "x" if checked else " "
-            new_content = content[: m.start(1)] + new_char + content[m.end(1) :]
-            self._editor.set_text_content(new_content)
+        self._workspaces.save_current()
+        self._update_workspace_context()
 
     # =========================================================================
     # Theme
@@ -373,24 +336,23 @@ class MainWindow(QMainWindow):
 
     def _on_emacs_mode_toggled(self, enabled: bool):
         self._settings.emacs_mode = enabled
-        self._editor.set_emacs_mode(enabled)
+        self._workspaces.set_emacs_mode(enabled)
 
     def _increase_font_size(self):
-        self._editor.increase_font_size()
+        self._workspaces.increase_font_size()
         self._sync_font_size()
 
     def _decrease_font_size(self):
-        self._editor.decrease_font_size()
+        self._workspaces.decrease_font_size()
         self._sync_font_size()
 
     def _reset_font_size(self):
-        self._editor.reset_font_size()
+        self._workspaces.reset_font_size()
         self._sync_font_size()
 
     def _sync_font_size(self):
-        size = self._editor.font_size()
+        size = self._workspaces.font_size()
         self._settings.font_size = size
-        self._preview.set_font_size(size)
 
     def _apply_theme(self, dark: bool):
         QApplication.instance().setStyleSheet(_QSS_DARK if dark else "")
@@ -398,8 +360,7 @@ class MainWindow(QMainWindow):
             self._path_label.setStyleSheet("background: #161b22; padding: 4px 8px; color: #8b949e;")
         else:
             self._path_label.setStyleSheet("background: #f6f8fa; padding: 4px 8px; color: #57606a;")
-        self._editor.set_dark_mode(dark)
-        self._preview.set_dark_mode(dark)
+        self._workspaces.set_dark_mode(dark)
 
     # =========================================================================
     # View mode
@@ -418,17 +379,7 @@ class MainWindow(QMainWindow):
         }
         action = action_map.get(mode, self._split_view_action)
         action.setChecked(True)
-
-        if mode == "edit":
-            self._editor.show()
-            self._preview.hide()
-        elif mode == "preview":
-            self._editor.hide()
-            self._preview.show()
-        else:  # split
-            self._editor.show()
-            self._preview.show()
-        self._preview.set_scroll_sync(mode == "split")
+        self._workspaces.set_view_mode(mode)
 
     # =========================================================================
     # Notes directory
@@ -442,6 +393,8 @@ class MainWindow(QMainWindow):
             self._settings.notes_root = path
             self._tree.set_root(path)
             self._search_panel.set_root(path)
+            self._workspaces.set_notes_root(path)
+            self._update_workspace_context()
 
     # =========================================================================
     # State persistence
@@ -459,8 +412,17 @@ class MainWindow(QMainWindow):
             self._main_splitter.restoreState(sp)
 
     def closeEvent(self, event):
-        self._save_file()
+        self._workspaces.save_all()
         self._settings.window_geometry = self.saveGeometry()
         self._settings.window_state = self.saveState(_STATE_VERSION)
         self._settings.splitter_state = self._main_splitter.saveState()
         super().closeEvent(event)
+
+    def _relative_to_root(self, path: str) -> str:
+        root = self._settings.notes_root
+        if not root:
+            return os.path.basename(path)
+        try:
+            return os.path.relpath(path, root)
+        except ValueError:
+            return os.path.abspath(path)

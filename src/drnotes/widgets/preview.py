@@ -317,6 +317,9 @@ class PreviewPanel(QWidget):
         else:
             self._pending = html
 
+    def clear_content(self):
+        self.update_content("")
+
     def set_scroll_fraction(self, fraction: float):
         if self._page_ready:
             self._view.page().runJavaScript(f"setScrollFraction({fraction});")

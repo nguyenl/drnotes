@@ -4,7 +4,11 @@ This document describes the architecture of DrNotes, a cross-platform desktop ma
 
 ## High-Level Overview
 
-DrNotes follows a **widget-composition** architecture. A single `MainWindow` orchestrates four independent widget components, wiring them together with Qt signals and slots. All state persistence is delegated to a `Settings` wrapper around `QSettings`.
+DrNotes follows a **widget-composition** architecture. A single
+`MainWindow` orchestrates independent widgets, wiring them together
+with Qt signals and slots. Open notes live inside a tabbed workspace,
+where each tab owns its own editor and preview pair. All state
+persistence is delegated to a `Settings` wrapper around `QSettings`.
 
 ```mermaid
 graph TD
@@ -12,8 +16,10 @@ graph TD
     MW --> DT[DirectoryTree<br>File Browser]
     MW --> SP[SearchPanel<br>Cross-File Search]
     MW --> TB[FormattingToolbar<br>Shortcuts]
-    MW --> ED[MarkdownEditor<br>Text Editing]
-    MW --> PP[PreviewPanel<br>HTML Rendering]
+    MW --> WT[WorkspaceTabs<br>Open Notes]
+    WT --> NW[NoteWorkspace<br>Per-Tab Editor + Preview]
+    NW --> ED[MarkdownEditor<br>Text Editing]
+    NW --> PP[PreviewPanel<br>HTML Rendering]
     MW --> ST[Settings<br>QSettings]
     PP --> WE[QWebEngineView<br>Mermaid.js]
     ED --> SH[MarkdownHighlighter<br>Syntax Colors]
@@ -33,6 +39,7 @@ src/drnotes/
     ├── __init__.py          # Re-exports public widget classes
     ├── editor.py            # MarkdownEditor, _EditorCore, _FindReplaceBar, _LineNumberArea
     ├── preview.py           # PreviewPanel, _Bridge, Mermaid fence formatter
+    ├── workspace_tabs.py    # WorkspaceTabs, NoteWorkspace
     ├── directory_tree.py    # DirectoryTree: file browser with context menu
     ├── search_panel.py      # SearchPanel: cross-file full-text search
     └── toolbar.py           # FormattingToolbar: buttons + keyboard shortcuts
@@ -46,8 +53,7 @@ sequenceDiagram
     participant MW as MainWindow
     participant S as Settings
     participant DT as DirectoryTree
-    participant ED as MarkdownEditor
-    participant PP as PreviewPanel
+    participant WT as WorkspaceTabs
 
     App->>MW: __init__()
     MW->>S: load settings
@@ -64,8 +70,7 @@ sequenceDiagram
     end
 
     alt Last file exists
-        MW->>ED: open_file(path)
-        MW->>PP: update_content(markdown)
+        MW->>WT: open_file(path)
     end
 
     App->>MW: show()
@@ -82,8 +87,7 @@ flowchart LR
         DT[DirectoryTree]
         SP[SearchPanel]
         TB[FormattingToolbar]
-        ED[MarkdownEditor]
-        PP[PreviewPanel]
+        WT[WorkspaceTabs]
     end
 
     subgraph MainWindow
@@ -91,39 +95,28 @@ flowchart LR
     end
 
     DT -- file_selected --> MW
-    MW -- open_file --> ED
-    MW -- update_content --> PP
+    MW -- open_file --> WT
 
-    ED -- content_changed --> MW
-    MW -- "preview_timer (300ms)" --> PP
-    MW -- "save_timer (5s)" --> ED
-
-    TB -- wrap_requested --> ED
-    TB -- line_prefix_requested --> ED
-    TB -- block_requested --> ED
-
-    PP -- checkbox_toggled --> MW
-    MW -- set_text_content --> ED
-
-    ED -- scroll_fraction_changed --> PP
-    PP -- wheel_event --> ED
+    TB -- formatting/view actions --> MW
+    MW -- target active workspace --> WT
 
     SP -- result_selected --> MW
-    MW -- open_file_at_line --> ED
+    MW -- open_file_at_line --> WT
+
+    WT -- current_context_changed --> MW
 ```
 
 ### Key signal paths
 
 | Trigger | Signal chain | Result |
 |---------|-------------|--------|
-| User clicks file in tree | `DirectoryTree.file_selected` → `MainWindow._open_file` | File loaded into editor, preview refreshed |
-| User types in editor | `MarkdownEditor.content_changed` → 300ms debounce → `PreviewPanel.update_content` | Live preview updates |
-| User types in editor | `MarkdownEditor.content_changed` → 5s debounce → `MainWindow._auto_save` | File saved to disk |
-| User clicks toolbar button | `FormattingToolbar.wrap_requested` → `MarkdownEditor.insert_wrap` | Markdown formatting applied |
-| User clicks checkbox in preview | `PreviewPanel.checkbox_toggled` → `MainWindow._on_checkbox_toggled` → `MarkdownEditor.set_text_content` | `- [ ]` ↔ `- [x]` toggled in source |
-| User scrolls editor | `MarkdownEditor.scroll_fraction_changed` → `PreviewPanel.set_scroll_fraction` | Preview scrolls to match |
-| User scrolls preview | `PreviewPanel.wheel_event` → `MarkdownEditor.adjust_scroll_by` | Editor scrolls to match |
-| User double-clicks search result | `SearchPanel.result_selected` → `MainWindow._open_file_at_line` → `MarkdownEditor.goto_line` | File opened and cursor jumps to matching line |
+| User clicks file in tree | `DirectoryTree.file_selected` → `MainWindow._open_file` → `WorkspaceTabs.open_file` | New tab opens or existing tab gains focus |
+| User types in an active tab | `MarkdownEditor.content_changed` → per-workspace 300ms debounce → `PreviewPanel.update_content` | Only that tab's preview updates |
+| User types in an active tab | `MarkdownEditor.content_changed` → per-workspace 5s debounce → `MarkdownEditor.save_current` | Only that tab auto-saves |
+| User clicks toolbar button | `FormattingToolbar.*` → `MainWindow` → active `NoteWorkspace` | Markdown formatting applies to the active tab |
+| User clicks checkbox in preview | `PreviewPanel.checkbox_toggled` → `NoteWorkspace._on_checkbox_toggled` → `MarkdownEditor.set_text_content` | Checklist source toggles inside the same tab |
+| User switches tabs | `WorkspaceTabs.current_context_changed` → `MainWindow._update_workspace_context` | Path label and status bar follow the active note |
+| User double-clicks search result | `SearchPanel.result_selected` → `MainWindow._open_file_at_line` → `WorkspaceTabs.open_file_at_line` | Existing tab focuses or a new tab opens at the target line |
 
 ## Widget Architecture
 
@@ -131,11 +124,11 @@ flowchart LR
 
 The central orchestrator. Responsibilities:
 
-- **Layout**: Assembles a two-level splitter (left: directory tree, right: toolbar + editor/preview split)
+- **Layout**: Assembles a two-level splitter (left: directory tree, right: toolbar + tabbed workspace)
 - **Menus**: File (new, save, change directory, exit), Edit (find/replace, search in files), View (view modes, dark mode, emacs mode)
-- **Timers**: Debounced preview refresh (300ms) and auto-save (5s)
 - **Theme**: Applies a Qt stylesheet (`_QSS_DARK`) globally and propagates dark mode to child widgets
 - **State persistence**: Saves/restores window geometry, splitter positions, and view mode on close/open
+- **Active workspace routing**: Directs global toolbar and menu actions to whichever note tab is active
 
 ```mermaid
 graph TD
@@ -149,14 +142,34 @@ graph TD
         LP --> SP[SearchPanel]
 
         RP --> TB[FormattingToolbar]
-        RP --> RS[Right Splitter - Horizontal]
-        RS --> ED[MarkdownEditor]
-        RS --> PP[PreviewPanel]
+        RP --> WT[WorkspaceTabs]
     end
 
     SB[Status Bar] --- FP[File Path - left]
     SB --- LS[Last Saved - right]
 ```
+
+### WorkspaceTabs (`widgets/workspace_tabs.py`)
+
+`WorkspaceTabs` manages all currently open notes. It owns:
+
+- A `QTabWidget` for the visible tab strip
+- A placeholder empty state when no files are open
+- One `NoteWorkspace` per open file
+- File-path-based duplicate detection so one file maps to one tab
+- Tab title disambiguation for same-name files in different folders
+
+Each `NoteWorkspace` contains:
+
+- One `MarkdownEditor`
+- One `PreviewPanel`
+- A horizontal splitter
+- Its own preview-refresh debounce timer (300 ms)
+- Its own auto-save timer (5 s)
+
+This keeps editor state, preview state, and save timing local to each
+open note instead of forcing `MainWindow` to swap one global editor
+between files.
 
 ### MarkdownEditor (`widgets/editor.py`)
 
@@ -192,7 +205,7 @@ graph TD
     PP --> BR[_Bridge<br>QObject]
     WV --> WC[QWebChannel]
     WC --> BR
-    WV --> MJ["Mermaid.js 10<br>(CDN)"]
+    WV --> MJ["Mermaid.js 10<br>(Bundled Asset)"]
 
     subgraph Rendering Pipeline
         MD[Markdown Text]

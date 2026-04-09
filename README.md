@@ -13,6 +13,7 @@ A cross-platform desktop markdown note-taking application that stores all data a
 ## Features
 
 ### Editor
+- Closable tabs so multiple notes can stay open at the same time
 - Markdown syntax highlighting with line numbers
 - Undo/redo, find and replace
 - Full-text search across all notes (`Ctrl+Shift+F`)
@@ -48,6 +49,7 @@ Invalid syntax displays an inline error message rather than failing silently.
 - Create, rename, and delete files and folders
 - Drag-and-drop to move files between folders
 - User-selectable notes root directory
+- Reopening an already open note focuses its existing tab instead of opening a duplicate
 
 ### Keyboard Shortcuts
 
@@ -145,6 +147,7 @@ src/drnotes/
 └── widgets/
     ├── editor.py           # Markdown editor with find/replace
     ├── preview.py          # HTML preview with Mermaid rendering
+    ├── workspace_tabs.py   # Tabbed note workspace container
     ├── directory_tree.py   # File/folder browser
     ├── search_panel.py     # Cross-file text search
     └── toolbar.py          # Formatting toolbar
